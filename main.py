@@ -2,10 +2,11 @@ import os
 import json
 import faiss
 import torch
+import random
 import argparse
 import gensim
 import numpy as np
-from tqdm import tqdm
+from datasets import load_dataset
 from rank_bm25 import BM25Okapi
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModel
@@ -33,11 +34,9 @@ def calculate_metrics_llm(questions_embeddings, index):
     N = len(questions_embeddings)
 
     recall_dict = {}
-    random_dict = {}
     ncdg_dict = {}
     map_dict = {}
     for k in [1, 2, 5, 10, 20, 50, 100]:
-        random_dict[f"random@{k}"] = k / N
         recall = 0
         ncdg_total = 0
         map_ = 0
@@ -63,7 +62,7 @@ def calculate_metrics_llm(questions_embeddings, index):
     return recall_dict, ncdg_dict, map_dict
 
 
-def calculate_metrics_bm25(questions, tokenized_questions, answers, answers_unique):
+def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answers_unique):
     N = len(questions)
     recall_dict = {}
     ncdg_dict = {}
@@ -92,11 +91,12 @@ def calculate_metrics_bm25(questions, tokenized_questions, answers, answers_uniq
 
         recall /= N
         recall_dict[f"recall@{k}"] = recall
-        ncdg_total /= N
-        ncdg_dict[f"ncdg@{k}"] = ncdg_total
-        map_ /= N
-        map_dict[f"map@{k}"] = map_
-        return recall_dict, ncdg_dict, map_dict
+        if k > 1:
+            ncdg_total /= N
+            ncdg_dict[f"ncdg@{k}"] = ncdg_total
+            map_ /= N
+            map_dict[f"map@{k}"] = map_
+    return recall_dict, ncdg_dict, map_dict
 
 def main(args):
     model_type = args.model_type
@@ -104,11 +104,19 @@ def main(args):
     batch_size = args.batch_size
 
     if dataset_type == "BioASQ":
-        questions = None
-        answers = None
+        dataset = load_dataset("BeIR/bioasq-generated-queries", split="train")
+        poss_inds = range(len(dataset))
+        inds = random.sample(poss_inds, 230)
+        dataset_test = dataset[inds]
+        questions = dataset_test['query']
+        answers = [f'{t} {a}' for t, a in zip(dataset_test['title'], dataset_test['text'])]
+        questions = [q.strip() for q in questions]
+        answers = [a.strip() for a in answers]
     else:
-        questions = None
-        answers = None
+        dataset = load_dataset("k2141255/RealMedQA", split="train")
+        filtered_dataset = dataset.filter(lambda example: (example["Plausible"]=='Completely') & (example['Answered']=='Completely'))
+        questions = [q.strip() for q in filtered_dataset['Question']]
+        answers = [a.strip() for a in filtered_dataset['Recommendation']]
 
     if model_type == "bm25":
         answers_unique = list(set(answers))
@@ -124,8 +132,8 @@ def main(args):
         model = AutoModel.from_pretrained(model_type).to(device)
 
 
-        questions_tokenized = create_dataset_tokenized(questions, tokenizer, device, batch_size)
-        answers_tokenized = create_dataset_tokenized(questions, tokenizer, device, batch_size)
+        questions_tokenized = create_dataset_tokenized(questions, tokenizer, device)
+        answers_tokenized = create_dataset_tokenized(answers, tokenizer, device)
 
         aloader = DataLoader(list(zip(answers_tokenized['input_ids'], answers_tokenized['token_type_ids'],
                                       answers_tokenized['attention_mask'])), batch_size=batch_size)
@@ -159,8 +167,8 @@ def main(args):
         "map": map_dict,
     }
 
-    with open("data/metrics.json") as f:
-        json.save(metrics_dict, f)
+    with open("data/metrics.json", 'w') as f:
+        json.dump(metrics_dict, f)
 
 
 if __name__ == "__main__":
@@ -172,19 +180,19 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model-type",
-        default="bert-base-uncased",
+        default="facebook/contriever",
         type=str,
         help="Model to use for information retrieval.",
     )
     parser.add_argument(
         "--dataset-type",
-        default="RealMedQA",
+        default="BioASQ",
         type=str,
         help="Data to use for information retrieval: 'BioASQ' or 'RealMedQA'.",
     )
     parser.add_argument(
         "--batch-size",
-        default=16,
+        default=8,
         type=int,
         help="Batch size used for inference'.",
     )
