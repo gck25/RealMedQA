@@ -10,106 +10,40 @@ from datasets import load_dataset
 from rank_bm25 import BM25Okapi
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModel
-from sklearn.metrics import ndcg_score, average_precision_score
+from utils import (mean_pooling, create_dataset_tokenized, calculate_metrics_llm, calculate_metrics_bm25,
+                   get_question_answer_dict)
 
-def mean_pooling(token_embeddings, mask):
-    token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
-    sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)[..., None]
-    return sentence_embeddings
-
-
-def create_dataset_tokenized(dataset, tokenizer, device):
-    dataset_tokenized = tokenizer(dataset, padding=True, truncation=True)
-
-    dataset_tokenized = {
-        'input_ids': torch.tensor(dataset_tokenized['input_ids']).to(device),
-        'token_type_ids': torch.tensor(dataset_tokenized['token_type_ids']).to(device),
-        'attention_mask': torch.tensor(dataset_tokenized['attention_mask']).to(device),
-    }
-
-    return dataset_tokenized
-
-
-def calculate_metrics_llm(questions_embeddings, index):
-    N = len(questions_embeddings)
-
-    recall_dict = {}
-    ncdg_dict = {}
-    map_dict = {}
-    for k in [1, 2, 5, 10, 20, 50, 100]:
-        recall = 0
-        ncdg_total = 0
-        map_ = 0
-        for i in range(N):
-            A, I = index.search(questions_embeddings[i:i + 1], k)
-
-            if i in I:
-                recall += 1
-                if k > 1:
-                    y_true = np.array([0.0] * A)
-                    ind = list(I[0]).index(i)
-                    y_true[0][ind] = 1.0
-                    ncdg_total += ndcg_score(y_true=y_true, y_score=A, k=k)
-                    map_ += average_precision_score(y_true=y_true[0], y_score=A[0])
-        if k > 1:
-            ncdg_total /= N
-            ncdg_dict[f"ncdg@{k}"] = ncdg_total
-            map_ /= N
-            map_dict[f"map@{k}"] = map_
-        recall /= N
-        recall_dict[f"recall@{k}"] = recall
-
-    return recall_dict, ncdg_dict, map_dict
-
-
-def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answers_unique):
-    N = len(questions)
-    recall_dict = {}
-    ncdg_dict = {}
-    map_dict = {}
-    for k in [1, 2, 5, 10, 20, 50, 100]:
-        recall = 0
-        ncdg_total = 0
-        map_ = 0
-        for q, tq, ans in zip(questions, tokenized_questions, answers):
-            top_k = bm25.get_top_n(tq, answers_unique, n=k)
-            if ans in top_k:
-                recall += 1
-                if k > 1:
-                    ind = top_k.index(ans)
-                    scores = bm25.get_scores(tq)
-
-                    y_score = [scores[i] for i, d in enumerate(answers_unique) if d in top_k]
-                    norm = sum(y_score)
-                    y_score = np.array([score / norm for score in y_score]).reshape(1, -1)
-
-                    y_true = np.array([0] * k).reshape(1, -1)
-
-                    y_true[0][ind] = 1
-                    ncdg_total += ndcg_score(y_true=y_true, y_score=y_score, k=k)
-                    map_ += average_precision_score(y_true=y_true[0], y_score=y_score[0], pos_label=1)
-
-        recall /= N
-        recall_dict[f"recall@{k}"] = recall
-        if k > 1:
-            ncdg_total /= N
-            ncdg_dict[f"ncdg@{k}"] = ncdg_total
-            map_ /= N
-            map_dict[f"map@{k}"] = map_
-    return recall_dict, ncdg_dict, map_dict
 
 def main(args):
     model_type = args.model_type
     dataset_type = args.dataset_type
     batch_size = args.batch_size
+    seed = args.seed
 
+    # decide which dataset to use: BioASQ or RealMedQA
     if dataset_type == "BioASQ":
+        # load BioASQ retrieval dataset used by BEIR
         dataset = load_dataset("BeIR/bioasq-generated-queries", split="train")
+
+        # obtain list of possible BioASQ indices
         poss_inds = range(len(dataset))
+
+        # set random seed
+        random.seed(seed)
+
+        # randomly sample 230 indices
         inds = random.sample(poss_inds, 230)
+
+        # create test dataset using sampled indices
         dataset_test = dataset[inds]
+
+        # select questions from indices
         questions = dataset_test['query']
+
+        # create answers using titles and abstracts of BioASQ papers
         answers = [f'{t} {a}' for t, a in zip(dataset_test['title'], dataset_test['text'])]
+
+        # strip questions and answers of leading and tailing spaces
         questions = [q.strip() for q in questions]
         answers = [a.strip() for a in answers]
     else:
@@ -118,30 +52,42 @@ def main(args):
         questions = [q.strip() for q in filtered_dataset['Question']]
         answers = [a.strip() for a in filtered_dataset['Recommendation']]
 
+    answers_unique = list(set(answers))
+
+    # decide which model to use: BM25 or BERT-based LLM
     if model_type == "bm25":
-        answers_unique = list(set(answers))
+        # process and tokenize questions and answers
         tokenized_answers = [list(gensim.utils.tokenize(doc.lower())) for doc in answers_unique]
         tokenized_questions = [list(gensim.utils.tokenize(q.lower())) for q in questions]
-        bm25 = BM25Okapi(tokenized_answers)
-        recall_dict, ncdg_dict, map_dict = calculate_metrics_bm25(bm25, questions, tokenized_questions, answers,
-                                                                  answers_unique)
 
+        # initialize BM25
+        bm25 = BM25Okapi(tokenized_answers)
+
+        # calculate Recall@k, nDCG@k and MAP@k for different values of k
+        recall_dict, ndcg_dict, map_dict = calculate_metrics_bm25(bm25, questions, tokenized_questions, answers,
+                                                                  answers_unique)
     else:
+        # if available use GPU, otherwise use CPU
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # load relevant model and tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_type)
         model = AutoModel.from_pretrained(model_type).to(device)
 
-
+        # tokenize questions and answers
         questions_tokenized = create_dataset_tokenized(questions, tokenizer, device)
-        answers_tokenized = create_dataset_tokenized(answers, tokenizer, device)
+        answers_tokenized = create_dataset_tokenized(answers_unique, tokenizer, device)
 
-        aloader = DataLoader(list(zip(answers_tokenized['input_ids'], answers_tokenized['token_type_ids'],
-                                      answers_tokenized['attention_mask'])), batch_size=batch_size)
-
+        # create question embeddings
         qoutputs = model(**questions_tokenized)
         questions_embeddings = mean_pooling(qoutputs[0], questions_tokenized['attention_mask'])
         questions_embeddings = questions_embeddings.cpu().detach().numpy()
 
+        # create answer loader
+        aloader = DataLoader(list(zip(answers_tokenized['input_ids'], answers_tokenized['token_type_ids'],
+                                      answers_tokenized['attention_mask'])), batch_size=batch_size)
+
+        # create answer embeddings
         answers_embeddings = []
         for input_ids, token_type_ids, attention_mask in aloader:
             batch_a_tok = {
@@ -153,17 +99,23 @@ def main(args):
             answers_embeddings.append(mean_pooling(aoutputs[0], batch_a_tok['attention_mask']).cpu().detach().numpy())
         answers_embeddings = np.concatenate(answers_embeddings, axis=0)
 
+        # create faiss search index of answer embeddings
         d = answers_embeddings.shape[1]
         index = faiss.IndexFlatIP(d)
+
+        # normalize questions and answers with L2 norm to search with dot product (using inner product operation)
         faiss.normalize_L2(answers_embeddings)
         index.add(answers_embeddings)
         faiss.normalize_L2(questions_embeddings)
 
-        recall_dict, ncdg_dict, map_dict = calculate_metrics_llm(questions_embeddings, index)
+        q2a = get_question_answer_dict(answers, answers_unique)
+
+        # calculate Recall@k, nDCG@k and MAP@k using different values of k
+        recall_dict, ndcg_dict, map_dict = calculate_metrics_llm(questions_embeddings, index, q2a)
 
     metrics_dict = {
         "recall": recall_dict,
-        "ncdg": ncdg_dict,
+        "ncdg": ndcg_dict,
         "map": map_dict,
     }
 
@@ -172,6 +124,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+    # create data path to store results of experiments
     if not os.path.exists("data"):
         os.mkdir("data")
 
@@ -180,7 +133,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--model-type",
-        default="facebook/contriever",
+        default="bm25",
         type=str,
         help="Model to use for information retrieval.",
     )
@@ -194,7 +147,13 @@ if __name__ == "__main__":
         "--batch-size",
         default=8,
         type=int,
-        help="Batch size used for inference'.",
+        help="Batch size used for inference.",
+    )
+    parser.add_argument(
+        "--seed",
+        default=8,
+        type=int,
+        help="Random seed used for random sampler of BioASQ.",
     )
     args = parser.parse_args()
     main(args)
