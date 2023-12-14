@@ -47,11 +47,18 @@ def main(args):
         questions = [q.strip() for q in questions]
         answers = [a.strip() for a in answers]
     else:
+        # load RealMedQA dataset
         dataset = load_dataset("k2141255/RealMedQA", split="train")
-        filtered_dataset = dataset.filter(lambda example: (example["Plausible"]=='Completely') & (example['Answered']=='Completely'))
+
+        # get QA pairs that are 'completely' plausible and answered
+        filtered_dataset = dataset.filter(lambda example: (example["Plausible"] == 'Completely') &
+                                                          (example['Answered'] == 'Completely'))
+
+        # strip questions and answers of trailing and leading spaces
         questions = [q.strip() for q in filtered_dataset['Question']]
         answers = [a.strip() for a in filtered_dataset['Recommendation']]
 
+    # get list of unique answers
     answers_unique = list(set(answers))
 
     # decide which model to use: BM25 or BERT-based LLM
