@@ -34,4 +34,4 @@ python main.py --model-type bm25 --dataset-type RealMedQA --batch-size 16 --seed
 
 ### Output
 THe output is the JSON file `metrics.json` in the `data` directory with `nDCG@k` and `MAP@k` for
-`k = {2, 5, 10, 20, 50, 100}` and `Recall@k` for `k = {1, 2, 5, 10, 20, 50, 100}`.
+k $\in$ {2, 5, 10, 20, 50, 100} and `recall@k` for k $\in$ {1, 2, 5, 10, 20, 50, 100}.
