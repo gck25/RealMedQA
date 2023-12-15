@@ -70,7 +70,7 @@ def main(args):
         # initialize BM25
         bm25 = BM25Okapi(tokenized_answers)
 
-        # calculate Recall@k, nDCG@k and MAP@k for different values of k
+        # calculate recall@k, nDCG@k and MAP@k for different values of k
         recall_dict, ndcg_dict, map_dict = calculate_metrics_bm25(bm25, questions, tokenized_questions, answers,
                                                                   answers_unique)
     else:
@@ -117,7 +117,7 @@ def main(args):
 
         q2a = get_question_answer_dict(answers, answers_unique)
 
-        # calculate Recall@k, nDCG@k and MAP@k using different values of k
+        # calculate recall@k, nDCG@k and MAP@k using different values of k
         recall_dict, ndcg_dict, map_dict = calculate_metrics_llm(questions_embeddings, index, q2a)
 
     metrics_dict = {
