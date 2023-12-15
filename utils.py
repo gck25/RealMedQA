@@ -77,7 +77,7 @@ def create_dataset_tokenized(dataset, tokenizer, device):
 
 def calculate_metrics_llm(questions_embeddings, index, q2a):
     """
-    Calculates Recall@k, nDCG@k and MAP@k using LLM embeddings.
+    Calculates recall@k, nDCG@k and MAP@k using LLM embeddings.
 
     Args:
         questions_embeddings: np.array
@@ -91,7 +91,7 @@ def calculate_metrics_llm(questions_embeddings, index, q2a):
         recall_dict, ndcg_dict, map_dict
 
         recall_dict: dict(str) = float
-            Recall@k for k in {1, 2, 5, 10, 20, 50, 100}
+            recall@k for k in {1, 2, 5, 10, 20, 50, 100}
         ndcg_dict: dict(str) = float
             nDCG@k for k in {2, 5, 10, 20, 50, 100}
         map_dict: dict(str) = float
@@ -121,7 +121,7 @@ def calculate_metrics_llm(questions_embeddings, index, q2a):
             ans_i = q2a[i]
             # if correct answer has been retrieved during search
             if ans_i in I:
-                # increment recall score
+                # increment recall@k
                 recall += 1
                 # for values of k greater than 1, calculate MAP@k and nDCG@k
                 if k > 1:
@@ -145,9 +145,9 @@ def calculate_metrics_llm(questions_embeddings, index, q2a):
             # update MAP@k dict
             map_dict[f"map@{k}"] = map_
 
-        # normalize Recall@k
+        # normalize recall@k
         recall /= N
-        # update Recall@k dict
+        # update recall@k dict
         recall_dict[f"recall@{k}"] = recall
 
     return recall_dict, ndcg_dict, map_dict
@@ -155,7 +155,7 @@ def calculate_metrics_llm(questions_embeddings, index, q2a):
 
 def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answers_unique):
     """
-    Calculates Recall@k, nDCG@k and MAP@k using BM25 scoring function.
+    Calculates recall@k, nDCG@k and MAP@k using BM25 scoring function.
 
     Args:
         bm25: rank_bm25.BM25Okapi
@@ -173,7 +173,7 @@ def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answer
         recall_dict, ndcg_dict, map_dict
 
         recall_dict: dict(str) = float
-            Recall@k for k in {1, 2, 5, 10, 20, 50, 100}
+            recall@k for k in {1, 2, 5, 10, 20, 50, 100}
         ndcg_dict: dict(str) = float
             nDCG@k for k in {2, 5, 10, 20, 50, 100}
         map_dict: dict(str) = float
@@ -200,7 +200,7 @@ def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answer
             top_k = bm25.get_top_n(tq, answers_unique, n=k)
             # if answer is in top k list
             if ans in top_k:
-                # increment Recall@k
+                # increment recall@k
                 recall += 1
                 # if k is greate than 1, calculate nDCG@k and MAP@k
                 if k > 1:
@@ -233,9 +233,9 @@ def calculate_metrics_bm25(bm25, questions, tokenized_questions, answers, answer
             # update MAP@k dict
             map_dict[f"map@{k}"] = map_
 
-        # normalize Recall@k
+        # normalize recall@k
         recall /= N
-        # update Recall@k dict
+        # update recall@k dict
         recall_dict[f"recall@{k}"] = recall
 
     return recall_dict, ndcg_dict, map_dict
