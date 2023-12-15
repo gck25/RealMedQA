@@ -17,6 +17,7 @@ python main.py --model-type bm25 --dataset-type RealMedQA --batch-size 16 --seed
 
 ### Arguments
 * `--model-type`: `str`
+  * BM25: `bm25`
   * BERT: `bert-base-uncased`
   * SciBERT: `allenai/scibert_scivocab_uncased`
   * BioBERT: `dmis-lab/biobert-v1.1`
