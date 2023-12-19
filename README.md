@@ -1,5 +1,6 @@
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CodeFactor](https://www.codefactor.io/repository/github/gck25/realmedqa/badge/main)](https://www.codefactor.io/repository/github/gck25/realmedqa/overview/main)
 
 # RealMedQA
 RealMedQA is a biomedical question answering dataset consisting of realistic question and answer pairs. The questions were created by medical students and a large language model (LLM), while the answers are guideline recommendations provided by the UK's National Institute for Health and Care Excellence (NICE).  This repositary contains the code to run experiments using the baseline models, i.e. Contriever, BM25, BERT, PubMedBERT, BioBERT, BioBERT fine-tuned on PubMedQA and SciBERT.
