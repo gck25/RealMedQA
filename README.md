@@ -3,7 +3,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/gck25/realmedqa/badge/main)](https://www.codefactor.io/repository/github/gck25/realmedqa/overview/main)
 
 # RealMedQA
-RealMedQA is a biomedical question answering dataset consisting of realistic question and answer pairs. The questions were created by medical students and a large language model (LLM), while the answers are guideline recommendations provided by the UK's National Institute for Health and Care Excellence (NICE).  This repositary contains the code to run experiments using the baseline models, i.e. Contriever, BM25, BERT, PubMedBERT, BioBERT, BioBERT fine-tuned on PubMedQA and SciBERT.
+RealMedQA is a biomedical question answering dataset consisting of realistic question and answer pairs. The questions were created by medical students and a large language model (LLM), while the answers are guideline recommendations provided by the UK's National Institute for Health and Care Excellence (NICE).  This repositary contains the code to run experiments using the baseline models, i.e. Contriever, BM25, BERT, PubMedBERT, BioBERT, BioBERT fine-tuned on PubMedQA and SciBERT.  The full paper describing the dataset and the experiments has been accepted to the American Medical Informatics Association (AMIA) Annual Symposium and is available [here](https://arxiv.org/abs/2408.08624).
 
 ## Requirements
 Installing python environment
@@ -39,3 +39,17 @@ python main.py --model-type bm25 --dataset-type RealMedQA --batch-size 16 --seed
 ### Output
 THe output is the JSON file `metrics.json` in the `data` directory with `nDCG@k` and `MAP@k` for
 k $\in$ {2, 5, 10, 20, 50, 100} and `recall@k` for k $\in$ {1, 2, 5, 10, 20, 50, 100}.
+
+### Citation
+If you use this codebase, please cite our work using the following reference:
+```
+@misc{kell2024realmedqapilotbiomedicalquestion,
+      title={RealMedQA: A pilot biomedical question answering dataset containing realistic clinical questions}, 
+      author={Gregory Kell and Angus Roberts and Serge Umansky and Yuti Khare and Najma Ahmed and Nikhil Patel and Chloe Simela and Jack Coumbe and Julian Rozario and Ryan-Rhys Griffiths and Iain J. Marshall},
+      year={2024},
+      eprint={2408.08624},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2408.08624}, 
+}
+```
