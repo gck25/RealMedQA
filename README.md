@@ -8,7 +8,7 @@ RealMedQA is a biomedical question answering dataset consisting of realistic que
 ## Requirements
 Installing python environment
 ```
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 ## Run
